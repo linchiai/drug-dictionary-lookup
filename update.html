@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>藥典 App 更新工具</title>
+<style>
+:root {
+  --navy: #1a2540; --navy2: #1f2e50; --navy3: #253460;
+  --teal: #00d4aa; --teal2: #00a884; --teal-glow: rgba(0,212,170,.15);
+  --warn: #ff6b6b; --amber: #ffd166;
+  --white: #f0f4ff; --muted: #8a9fbc; --border: rgba(255,255,255,.10);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, 'Noto Sans TC', sans-serif;
+  background: var(--navy); color: var(--white); min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 24px 16px;
+}
+.card {
+  background: var(--navy2); border: 1px solid var(--border);
+  border-radius: 16px; padding: 28px 24px; width: 100%; max-width: 560px;
+  display: flex; flex-direction: column; gap: 20px;
+}
+.logo { display: flex; align-items: center; gap: 12px; }
+.logo-icon {
+  width: 48px; height: 48px; border-radius: 14px;
+  background: linear-gradient(135deg, var(--teal), var(--teal2));
+  display: flex; align-items: center; justify-content: center; font-size: 24px;
+}
+.logo h1 { font-size: 18px; font-weight: 700; }
+.logo p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+/* Drop zone */
+.drop-zone {
+  border: 2px dashed var(--border); border-radius: 12px;
+  padding: 32px 20px; text-align: center; cursor: pointer;
+  transition: all .2s; position: relative;
+}
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--teal); background: var(--teal-glow);
+}
+.drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.drop-icon { font-size: 40px; margin-bottom: 10px; }
+.drop-text { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.drop-hint { font-size: 12px; color: var(--muted); }
+
+/* Progress / status */
+.status-box {
+  background: var(--navy3); border-radius: 10px; padding: 14px 16px;
+  display: none; flex-direction: column; gap: 8px;
+}
+.status-box.show { display: flex; }
+.progress-bar-wrap {
+  background: rgba(255,255,255,.07); border-radius: 6px; height: 6px; overflow: hidden;
+}
+.progress-bar { height: 100%; background: var(--teal); border-radius: 6px; transition: width .3s; width: 0%; }
+.status-text { font-size: 13px; color: var(--muted); }
+.status-count { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--teal); }
+
+/* Column mapping */
+.col-map {
+  display: none; flex-direction: column; gap: 10px;
+}
+.col-map.show { display: flex; }
+.col-map h3 { font-size: 14px; font-weight: 600; color: var(--teal); }
+.col-map p { font-size: 12px; color: var(--muted); }
+.col-rows { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
+.col-row { display: flex; align-items: center; gap: 8px; }
+.col-label { font-size: 12px; width: 130px; flex-shrink: 0; color: var(--white); }
+.col-select {
+  flex: 1; background: var(--navy); border: 1px solid var(--border);
+  border-radius: 6px; padding: 5px 8px; color: var(--white); font-size: 12px;
+  outline: none;
+}
+.col-select:focus { border-color: var(--teal); }
+
+/* Preview table */
+.preview {
+  display: none; flex-direction: column; gap: 8px;
+}
+.preview.show { display: flex; }
+.preview h3 { font-size: 13px; font-weight: 600; color: var(--teal); }
+.preview-table-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+.preview-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.preview-table th { background: var(--navy3); padding: 6px 8px; text-align: left; color: var(--muted); white-space: nowrap; }
+.preview-table td { padding: 5px 8px; border-top: 1px solid var(--border); max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Buttons */
+.btn-primary {
+  background: linear-gradient(135deg, var(--teal), var(--teal2));
+  color: var(--navy); border: none; border-radius: 10px;
+  padding: 13px; font-size: 15px; font-weight: 700; cursor: pointer;
+  width: 100%; display: none; transition: opacity .15s;
+}
+.btn-primary:hover { opacity: .9; }
+.btn-primary.show { display: block; }
+.btn-secondary {
+  background: transparent; color: var(--muted); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px; font-size: 13px; cursor: pointer; width: 100%;
+  display: none;
+}
+.btn-secondary.show { display: block; }
+
+/* Result */
+.result {
+  display: none; flex-direction: column; gap: 10px;
+  background: rgba(0,212,170,.08); border: 1px solid var(--teal);
+  border-radius: 10px; padding: 16px;
+}
+.result.show { display: flex; }
+.result h3 { color: var(--teal); font-size: 14px; }
+.result p { font-size: 12px; color: var(--muted); line-height: 1.6; }
+.btn-download {
+  background: var(--teal); color: var(--navy); border: none;
+  border-radius: 8px; padding: 12px; font-size: 14px; font-weight: 700;
+  cursor: pointer; width: 100%; display: flex; align-items: center;
+  justify-content: center; gap: 8px;
+}
+.warn-box {
+  background: rgba(255,107,107,.08); border: 1px solid rgba(255,107,107,.3);
+  border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #ff9999;
+  display: none;
+}
+.warn-box.show { display: block; }
+
+/* Steps indicator */
+.steps { display: flex; gap: 0; margin-bottom: 4px; }
+.step { flex: 1; text-align: center; font-size: 10px; color: var(--muted); position: relative; }
+.step::before {
+  content: attr(data-n); display: block; width: 22px; height: 22px;
+  border-radius: 50%; background: var(--navy3); border: 1.5px solid var(--border);
+  margin: 0 auto 4px; line-height: 19px; font-weight: 700;
+}
+.step.active::before { background: var(--teal); border-color: var(--teal); color: var(--navy); }
+.step.done::before { background: var(--teal2); border-color: var(--teal2); color: var(--navy); content: "✓"; }
+.step::after {
+  content: ''; position: absolute; top: 11px; left: 50%; right: -50%;
+  height: 1.5px; background: var(--border); z-index: -1;
+}
+.step:last-child::after { display: none; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="logo">
+    <div class="logo-icon">⚙️</div>
+    <div>
+      <h1>藥典 App 更新工具</h1>
+      <p>上傳新版 Excel → 自動產生 index.html</p>
+    </div>
+  </div>
+
+  <!-- Steps -->
+  <div class="steps">
+    <div class="step active" id="step1" data-n="1">上傳 Excel</div>
+    <div class="step" id="step2" data-n="2">確認欄位</div>
+    <div class="step" id="step3" data-n="3">產生檔案</div>
+  </div>
+
+  <!-- Step 1: Upload -->
+  <div id="sec-upload">
+    <div class="drop-zone" id="drop-zone">
+      <input type="file" id="file-input" accept=".xls,.xlsx" onchange="handleFile(this.files[0])">
+      <div class="drop-icon">📊</div>
+      <div class="drop-text">點擊或拖曳 Excel 檔案</div>
+      <div class="drop-hint">.xls 或 .xlsx 格式，即醫院藥典匯出檔</div>
+    </div>
+  </div>
+
+  <!-- Status / progress -->
+  <div class="status-box" id="status-box">
+    <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar"></div></div>
+    <div style="display:flex;justify-content:space-between;">
+      <span class="status-text" id="status-text">讀取中…</span>
+      <span class="status-count" id="status-count"></span>
+    </div>
+  </div>
+
+  <!-- Step 2: Column mapping -->
+  <div class="col-map" id="sec-colmap">
+    <h3>📋 確認欄位對應</h3>
+    <p>請確認以下欄位對應是否正確，若新版 Excel 欄位名稱有異動，請手動調整</p>
+    <div class="col-rows" id="col-rows"></div>
+  </div>
+
+  <!-- Preview -->
+  <div class="preview" id="sec-preview">
+    <h3>預覽前 3 筆資料</h3>
+    <div class="preview-table-wrap">
+      <table class="preview-table">
+        <thead id="preview-head"></thead>
+        <tbody id="preview-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="warn-box" id="warn-box"></div>
+
+  <!-- Generate button -->
+  <button class="btn-primary" id="btn-generate" onclick="generateHTML()">
+    ⚡ 產生新版 index.html
+  </button>
+
+  <!-- Result -->
+  <div class="result" id="sec-result">
+    <h3>✅ 新版 App 已產生</h3>
+    <p id="result-desc"></p>
+    <button class="btn-download" id="btn-download" onclick="downloadHTML()">
+      ⬇️ 下載 index.html
+    </button>
+    <p style="font-size:11px;color:var(--muted)">
+      下載後上傳到 GitHub repo，覆蓋原本的 index.html，App 即自動更新
+    </p>
+  </div>
+
+  <button class="btn-secondary" id="btn-reset" onclick="resetAll()">
+    重新上傳其他檔案
+  </button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ── Templates (embedded from current index.html) ──
+const TMPL_BEFORE = "<!DOCTYPE html>\n<html lang=\"zh-Hant\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no\">\n<title>\u79c0\u50b3\u85e5\u5178 AI \u52a9\u7406</title>\n\n<!-- PWA -->\n<link rel=\"manifest\" href=\"manifest.json\">\n<meta name=\"theme-color\" content=\"#0a1628\">\n<meta name=\"mobile-web-app-capable\" content=\"yes\">\n<meta name=\"apple-mobile-web-app-capable\" content=\"yes\">\n<meta name=\"apple-mobile-web-app-status-bar-style\" content=\"black-translucent\">\n<meta name=\"apple-mobile-web-app-title\" content=\"\u85e5\u5178AI\">\n<link rel=\"apple-touch-icon\" href=\"icon-192.png\">\n\n<style>\n/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n   Design: Clinical Dark \u2014 precision medical tool\n   Deep navy + electric teal + warm white\n   \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');\n\n:root {\n  --navy:    #0a1628;\n  --navy2:   #0f2040;\n  --navy3:   #162a4e;\n  --teal:    #00d4aa;\n  --teal2:   #00a884;\n  --teal-glow: rgba(0,212,170,.15);\n  --warn:    #ff6b6b;\n  --warn-bg: rgba(255,107,107,.1);\n  --amber:   #ffd166;\n  --white:   #f0f4ff;\n  --muted:   #7a8fac;\n  --border:  rgba(255,255,255,.07);\n  --card-bg: rgba(255,255,255,.04);\n  --r: 12px;\n  --r-sm: 8px;\n}\n\n* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }\nhtml, body { height: 100%; }\nbody {\n  font-family: 'DM Sans', -apple-system, 'Noto Sans TC', sans-serif;\n  background: var(--navy);\n  color: var(--white);\n  font-size: 14px;\n  line-height: 1.5;\n  overflow: hidden;\n}\n\n/* \u2500\u2500 App Shell \u2500\u2500 */\n.app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }\n\n/* \u2500\u2500 Header \u2500\u2500 */\n.hdr {\n  background: var(--navy2);\n  border-bottom: 1px solid var(--border);\n  padding: 12px 16px;\n  display: flex; align-items: center; gap: 10px;\n  flex-shrink: 0;\n}\n.hdr-logo {\n  width: 32px; height: 32px; border-radius: 8px;\n  background: linear-gradient(135deg, var(--teal), var(--teal2));\n  display: flex; align-items: center; justify-content: center;\n  font-size: 16px; flex-shrink: 0;\n}\n.hdr-title { flex: 1; }\n.hdr-title h1 { font-size: 15px; font-weight: 600; color: var(--white); }\n.hdr-title p { font-size: 11px; color: var(--muted); }\n.hdr-count { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--teal); background: var(--teal-glow); padding: 3px 8px; border-radius: 20px; }\n\n/* \u2500\u2500 Tab Bar \u2500\u2500 */\n.tabs {\n  display: flex; background: var(--navy2); border-bottom: 1px solid var(--border);\n  flex-shrink: 0;\n}\n.tab {\n  flex: 1; padding: 10px 4px; text-align: center; font-size: 12px; font-weight: 500;\n  color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;\n  transition: all .2s; user-select: none;\n}\n.tab.active { color: var(--teal); border-bottom-color: var(--teal); }\n.tab .tab-icon { font-size: 16px; display: block; margin-bottom: 2px; }\n\n/* \u2500\u2500 Panels \u2500\u2500 */\n.panel { display: none; flex: 1; overflow: hidden; flex-direction: column; }\n.panel.active { display: flex; }\n\n/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n   PANEL 1: AI Search\n   \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n.ai-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }\n\n/* Chat messages area */\n.chat-area {\n  flex: 1; overflow-y: auto; padding: 16px;\n  display: flex; flex-direction: column; gap: 12px;\n  scroll-behavior: smooth;\n}\n.chat-area::-webkit-scrollbar { width: 4px; }\n.chat-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }\n\n/* Welcome state */\n.welcome {\n  flex: 1; display: flex; flex-direction: column; align-items: center;\n  justify-content: center; padding: 24px; text-align: center; gap: 16px;\n}\n.welcome-icon {\n  width: 64px; height: 64px; border-radius: 20px;\n  background: linear-gradient(135deg, var(--teal), var(--teal2));\n  display: flex; align-items: center; justify-content: center; font-size: 32px;\n  box-shadow: 0 0 40px var(--teal-glow);\n}\n.welcome h2 { font-size: 20px; font-weight: 600; }\n.welcome p { color: var(--muted); font-size: 13px; max-width: 280px; line-height: 1.6; }\n.suggestions { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 360px; margin-top: 8px; }\n.sug-btn {\n  background: var(--card-bg); border: 1px solid var(--border);\n  border-radius: var(--r-sm); padding: 10px 14px; text-align: left;\n  color: var(--white); font-size: 13px; cursor: pointer;\n  transition: all .15s; line-height: 1.4;\n}\n.sug-btn:hover, .sug-btn:active { background: var(--teal-glow); border-color: var(--teal); color: var(--teal); }\n\n/* Message bubbles */\n.msg { display: flex; gap: 8px; animation: fadeUp .3s ease; }\n@keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }\n.msg.user { flex-direction: row-reverse; }\n.msg-avatar {\n  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;\n  display: flex; align-items: center; justify-content: center; font-size: 14px;\n  margin-top: 2px;\n}\n.msg.ai .msg-avatar { background: linear-gradient(135deg, var(--teal), var(--teal2)); }\n.msg.user .msg-avatar { background: var(--navy3); }\n.msg-bubble {\n  max-width: 85%; padding: 10px 13px; border-radius: var(--r);\n  font-size: 13.5px; line-height: 1.6;\n}\n.msg.ai .msg-bubble {\n  background: var(--navy3); border: 1px solid var(--border);\n  border-radius: 2px var(--r) var(--r) var(--r);\n}\n.msg.user .msg-bubble {\n  background: var(--teal); color: var(--navy);\n  border-radius: var(--r) 2px var(--r) var(--r);\n  font-weight: 500;\n}\n.msg-bubble p { margin-bottom: 6px; }\n.msg-bubble p:last-child { margin-bottom: 0; }\n\n/* Drug result cards in AI response */\n.drug-cards { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }\n.drug-card-mini {\n  background: var(--navy); border: 1px solid var(--border);\n  border-radius: var(--r-sm); padding: 10px 12px; cursor: pointer;\n  transition: all .15s; border-left: 3px solid var(--teal);\n}\n.drug-card-mini:hover { border-color: var(--teal); background: var(--teal-glow); }\n.dcm-code { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); }\n.dcm-name { font-size: 14px; font-weight: 600; margin: 2px 0; }\n.dcm-sub { font-size: 11px; color: var(--muted); }\n.dcm-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 5px; }\n.dcm-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; }\n.dcm-tag.dept { background: rgba(0,212,170,.1); color: var(--teal); }\n.dcm-tag.warn { background: var(--warn-bg); color: var(--warn); }\n.dcm-tag.crush { background: rgba(255,209,102,.1); color: var(--amber); }\n.dcm-reason { font-size: 12px; color: #a0b0c8; margin-top: 6px; font-style: italic; border-top: 1px solid var(--border); padding-top: 6px; }\n\n/* Thinking indicator */\n.thinking {\n  display: flex; gap: 4px; align-items: center; padding: 12px 14px;\n  background: var(--navy3); border: 1px solid var(--border);\n  border-radius: 2px var(--r) var(--r) var(--r); width: fit-content;\n}\n.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); animation: bounce 1.2s infinite; }\n.dot:nth-child(2) { animation-delay: .2s; }\n.dot:nth-child(3) { animation-delay: .4s; }\n@keyframes bounce { 0%,60%,100%{transform:translateY(0);opacity:.4} 30%{transform:translateY(-6px);opacity:1} }\n\n/* Input area */\n.chat-input-wrap {\n  background: var(--navy2); border-top: 1px solid var(--border);\n  padding: 10px 12px; flex-shrink: 0;\n  padding-bottom: calc(10px + env(safe-area-inset-bottom));\n}\n.chat-input-row { display: flex; gap: 8px; align-items: flex-end; }\n#ai-input {\n  flex: 1; background: var(--navy3); border: 1.5px solid var(--border);\n  border-radius: var(--r); padding: 10px 14px; color: var(--white);\n  font-family: 'DM Sans', sans-serif; font-size: 14px; resize: none;\n  min-height: 42px; max-height: 120px; outline: none; transition: border .2s;\n  line-height: 1.5;\n}\n#ai-input::placeholder { color: var(--muted); }\n#ai-input:focus { border-color: var(--teal); }\n.send-btn {\n  width: 42px; height: 42px; border-radius: var(--r-sm); border: none;\n  background: var(--teal); color: var(--navy); cursor: pointer;\n  display: flex; align-items: center; justify-content: center;\n  font-size: 18px; flex-shrink: 0; transition: all .15s; font-weight: 700;\n}\n.send-btn:hover { background: var(--teal2); transform: scale(1.05); }\n.send-btn:disabled { background: var(--navy3); color: var(--muted); transform: none; cursor: default; }\n.input-hint { font-size: 11px; color: var(--muted); margin-top: 6px; text-align: center; }\n\n/* API key setup */\n.api-setup {\n  background: var(--navy3); border: 1px solid var(--border);\n  border-radius: var(--r); padding: 14px; margin: 12px;\n  display: flex; flex-direction: column; gap: 10px;\n}\n.api-setup p { font-size: 13px; color: var(--muted); }\n.api-setup input {\n  background: var(--navy); border: 1.5px solid var(--border); border-radius: var(--r-sm);\n  padding: 10px 12px; color: var(--white); font-family: 'DM Mono', monospace;\n  font-size: 12px; outline: none; width: 100%;\n}\n.api-setup input:focus { border-color: var(--teal); }\n.api-save-btn {\n  background: var(--teal); color: var(--navy); border: none;\n  border-radius: var(--r-sm); padding: 10px; font-size: 14px; font-weight: 600;\n  cursor: pointer; width: 100%;\n}\n\n/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n   PANEL 2: Browse / Quick Search\n   \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n.browse-panel { display: flex; flex-direction: column; overflow: hidden; }\n\n.search-bar {\n  background: var(--navy2); border-bottom: 1px solid var(--border);\n  padding: 10px 12px; flex-shrink: 0;\n}\n.search-row { display: flex; gap: 8px; margin-bottom: 8px; }\n#q {\n  flex: 1; background: var(--navy3); border: 1.5px solid var(--border);\n  border-radius: var(--r-sm); padding: 10px 14px; color: var(--white);\n  font-size: 14px; outline: none; transition: border .2s;\n}\n#q:focus { border-color: var(--teal); }\n#q::placeholder { color: var(--muted); }\n\n.filter-row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }\n.filter-row::-webkit-scrollbar { display: none; }\nselect {\n  background: var(--navy3); border: 1.5px solid var(--border);\n  border-radius: var(--r-sm); padding: 6px 10px; color: var(--white);\n  font-size: 12px; cursor: pointer; white-space: nowrap; flex-shrink: 0;\n  outline: none;\n}\nselect:focus { border-color: var(--teal); }\n.chips { display: flex; gap: 5px; flex-shrink: 0; }\n.chip {\n  padding: 5px 10px; border-radius: 20px; border: 1.5px solid var(--border);\n  background: transparent; font-size: 11px; cursor: pointer; color: var(--muted);\n  transition: all .15s; white-space: nowrap; flex-shrink: 0;\n}\n.chip.on { background: var(--teal-glow); border-color: var(--teal); color: var(--teal); }\n.result-info { font-size: 11px; color: var(--muted); margin-top: 6px; }\n\n/* Drug list */\n#list {\n  flex: 1; overflow-y: auto; padding: 10px 12px;\n  display: flex; flex-direction: column; gap: 6px;\n}\n#list::-webkit-scrollbar { width: 4px; }\n#list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }\n\n.card {\n  background: var(--card-bg); border: 1px solid var(--border);\n  border-radius: var(--r); padding: 11px 13px; cursor: pointer;\n  transition: all .15s; border-left: 3px solid transparent;\n}\n.card:hover, .card:active { background: var(--teal-glow); border-left-color: var(--teal); }\n.card-code { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); }\n.card-brand { font-size: 14px; font-weight: 600; margin: 2px 0 1px; line-height: 1.3; }\n.card-generic { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.card-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }\n.tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 500; }\n.tag-dept { background: rgba(0,212,170,.1); color: var(--teal); }\n.tag-cat { background: rgba(255,255,255,.06); color: #7a8fac; }\n.tag-warn { background: var(--warn-bg); color: var(--warn); }\n.tag-crush { background: rgba(255,209,102,.1); color: var(--amber); }\n.tag-fall { background: rgba(255,107,107,.08); color: #ff9f9f; }\n.tag-preg { background: rgba(100,200,100,.1); color: #7fda7f; font-weight: 700; }\n\n/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n   Detail Modal\n   \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n.overlay {\n  display: none; position: fixed; inset: 0;\n  background: rgba(0,0,0,.7); z-index: 300;\n  overflow-y: auto; -webkit-overflow-scrolling: touch;\n}\n.overlay.open { display: block; }\n.modal {\n  background: var(--navy2); min-height: 100vh; max-width: 680px; margin: 0 auto;\n}\n@media (min-width: 720px) {\n  .overlay { display: none; align-items: center; justify-content: center; padding: 24px; }\n  .overlay.open { display: flex; }\n  .modal { min-height: auto; border-radius: 16px; max-height: 90vh; overflow-y: auto; }\n}\n.modal-hdr {\n  background: linear-gradient(135deg, var(--navy3), var(--navy2));\n  padding: 16px; display: flex; align-items: flex-start; gap: 10px;\n  position: sticky; top: 0; z-index: 1; border-bottom: 1px solid var(--border);\n}\n.modal-hdr-text { flex: 1; }\n.modal-hdr h2 { font-size: 16px; font-weight: 700; line-height: 1.3; }\n.modal-hdr p { font-size: 11px; color: var(--muted); margin-top: 3px; }\n.btn-close {\n  background: var(--card-bg); border: 1px solid var(--border);\n  color: var(--muted); width: 30px; height: 30px; border-radius: 50%;\n  cursor: pointer; font-size: 16px; flex-shrink: 0; display: flex;\n  align-items: center; justify-content: center;\n}\n.flags { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--border); }\n.modal-body { padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; padding-bottom: 32px; }\n.meta-grid {\n  display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));\n  gap: 8px; background: var(--navy3); border-radius: var(--r); padding: 12px;\n  border: 1px solid var(--border);\n}\n.meta-item .ml { font-size: 10px; color: var(--muted); margin-bottom: 2px; }\n.meta-item .mv { font-size: 13px; font-weight: 600; }\n.sec { border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--border); }\n.sec-hdr {\n  background: var(--navy3); padding: 8px 12px;\n  font-size: 11px; font-weight: 700; color: var(--teal); letter-spacing: .05em;\n  text-transform: uppercase; border-bottom: 1px solid var(--border);\n}\n.sec-hdr.danger { color: var(--warn); background: var(--warn-bg); }\n.sec-body {\n  padding: 10px 12px; font-size: 12.5px; line-height: 1.7;\n  color: #c8d8f0; white-space: pre-wrap; background: rgba(255,255,255,.02);\n}\n\n/* Ask AI about this drug button */\n.ask-ai-btn {\n  background: linear-gradient(135deg, var(--teal), var(--teal2));\n  color: var(--navy); border: none; border-radius: var(--r); padding: 12px;\n  font-size: 14px; font-weight: 700; cursor: pointer; width: 100%;\n  margin-top: 4px; display: flex; align-items: center; justify-content: center; gap: 8px;\n}\n\n/* Empty state */\n.empty { text-align: center; padding: 48px 24px; color: var(--muted); }\n.empty .ei { font-size: 48px; margin-bottom: 12px; }\n\n/* Offline / update bars */\n#offline-bar { display:none; background:#c62828; color:#fff; text-align:center; padding:6px; font-size:12px; font-weight:600; }\n#offline-bar.show { display:block; }\n\n/* Model option buttons */\n.model-opt {\n  flex: 1; min-width: 90px; background: var(--navy); border: 1.5px solid var(--border);\n  border-radius: var(--r-sm); padding: 8px 6px; color: var(--muted);\n  font-size: 11px; font-weight: 500; cursor: pointer; text-align: center;\n  line-height: 1.5; transition: all .15s;\n}\n.model-opt.active { border-color: var(--teal); color: var(--teal); background: var(--teal-glow); }\n.model-opt small { color: var(--muted); font-size: 10px; display: block; }\n.model-opt.active small { color: var(--teal); }\n\n/* Provider tabs */\n.prov-tab {\n  flex: 1; background: var(--navy); border: 1.5px solid var(--border);\n  border-radius: var(--r-sm); padding: 8px 4px; color: var(--muted);\n  font-size: 11px; font-weight: 500; cursor: pointer; text-align: center;\n  line-height: 1.4; transition: all .15s;\n}\n.prov-tab.active { border-color: var(--teal); color: var(--teal); background: var(--teal-glow); }\n.prov-tab small { color: var(--muted); font-size: 10px; }\n.prov-tab.active small { color: var(--teal); }\n\n/* Scrollbar */\n::-webkit-scrollbar { width: 4px; }\n::-webkit-scrollbar-track { background: transparent; }\n::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }\n</style>\n</head>\n<body>\n\n<div id=\"offline-bar\">\u26a0 \u96e2\u7dda\u6a21\u5f0f \u2014 \u986f\u793a\u5feb\u53d6\u8cc7\u6599</div>\n\n<div class=\"app\">\n  <!-- Header -->\n  <div class=\"hdr\">\n    <div class=\"hdr-logo\">\ud83d\udc8a</div>\n    <div class=\"hdr-title\">\n      <h1>\u79c0\u50b3\u85e5\u5178 AI \u52a9\u7406</h1>\n      <p>\u9ad8\u96c4\u79c0\u50b3\u7d00\u5ff5\u91ab\u9662</p>\n    </div>\n    <span class=\"hdr-count\" id=\"total-badge\">\u2026</span>\n    <button onclick=\"openProviderSettings()\" title=\"AI \u8a2d\u5b9a\" style=\"background:var(--card-bg);border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center;\">\u2699\ufe0f</button>\n  </div>\n\n  <!-- Tab Bar -->\n  <div class=\"tabs\">\n    <div class=\"tab active\" id=\"tab-ai\" onclick=\"switchTab('ai')\">\n      <span class=\"tab-icon\">\ud83e\udd16</span>AI \u67e5\u85e5\n    </div>\n    <div class=\"tab\" id=\"tab-browse\" onclick=\"switchTab('browse')\">\n      <span class=\"tab-icon\">\ud83d\udd0d</span>\u700f\u89bd\u67e5\u8a62\n    </div>\n  </div>\n\n  <!-- Panel: AI -->\n  <div class=\"panel active\" id=\"panel-ai\">\n    <div class=\"ai-panel\">\n\n      <!-- API key setup (shown if no key) -->\n      <div id=\"api-setup-box\" class=\"api-setup\" style=\"display:none\">\n        <p style=\"font-size:14px;font-weight:600;color:var(--white)\">\ud83d\udd11 \u8a2d\u5b9a AI \u4f9b\u61c9\u5546</p>\n        <p style=\"font-size:12px\">\u9078\u64c7\u4f9b\u61c9\u5546\u4e26\u8f38\u5165 API Key\uff0cKey \u50c5\u5132\u5b58\u5728\u672c\u6a5f\u700f\u89bd\u5668\uff0c\u4e0d\u6703\u4e0a\u50b3</p>\n\n        <!-- Provider selector -->\n        <div id=\"provider-tabs\" style=\"display:flex;gap:6px;\">\n          <button class=\"prov-tab active\" id=\"ptab-anthropic\" onclick=\"selectProvider('anthropic')\">\n            <span style=\"font-size:16px\">\ud83d\udfe3</span><br>Anthropic<br><small>Claude</small>\n          </button>\n          <button class=\"prov-tab\" id=\"ptab-openai\" onclick=\"selectProvider('openai')\">\n            <span style=\"font-size:16px\">\ud83d\udfe2</span><br>OpenAI<br><small>GPT-4o</small>\n          </button>\n          <button class=\"prov-tab\" id=\"ptab-google\" onclick=\"selectProvider('google')\">\n            <span style=\"font-size:16px\">\ud83d\udd35</span><br>Google<br><small>Gemini</small>\n          </button>\n          <button class=\"prov-tab\" id=\"ptab-groq\" onclick=\"selectProvider('groq')\">\n            <span style=\"font-size:16px\">\u26a1</span><br>Groq<br><small>\u514d\u8cbb</small>\n          </button>\n        </div>\n\n        <!-- Dynamic hint per provider -->\n        <div id=\"prov-hint\" style=\"font-size:11px;color:#5a7a9a;line-height:1.6\"></div>\n\n        <!-- Model selector (shown for Google) -->\n        <div id=\"model-selector\" style=\"display:none;flex-direction:column;gap:6px;\">\n          <div style=\"font-size:12px;color:var(--muted)\">\u9078\u64c7\u6a21\u578b\uff1a</div>\n          <div style=\"display:flex;gap:6px;flex-wrap:wrap;\">\n            <button class=\"model-opt active\" id=\"mopt-gemma-4-26b-a4b-it\" onclick=\"selectModel('gemma-4-26b-a4b-it')\">\n              \u26a1 Gemma 4 26B<br><small>MoE\u30fb\u901f\u5ea6\u5feb\u30fb\u514d\u8cbb</small>\n            </button>\n            <button class=\"model-opt\" id=\"mopt-gemma-4-31b-it\" onclick=\"selectModel('gemma-4-31b-it')\">\n              \ud83e\udde0 Gemma 4 31B<br><small>Dense\u30fb\u54c1\u8cea\u6700\u9ad8\u30fb\u514d\u8cbb</small>\n            </button>\n            <button class=\"model-opt\" id=\"mopt-gemini-2.0-flash\" onclick=\"selectModel('gemini-2.0-flash')\">\n              \u2728 Gemini 2.0 Flash<br><small>\u4ed8\u8cbb\u65b9\u6848\u30fb\u6700\u5f37</small>\n            </button>\n          </div>\n        </div>\n\n        <input type=\"password\" id=\"api-key-input\" placeholder=\"\u8cbc\u4e0a API Key\u2026\">\n        <button class=\"api-save-btn\" onclick=\"saveApiKey()\">\u5132\u5b58\u4e26\u555f\u7528 AI</button>\n        <button onclick=\"document.getElementById('api-setup-box').style.display='none'\" style=\"background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:var(--r-sm);padding:8px;font-size:13px;cursor:pointer;width:100%\">\u53d6\u6d88</button>\n\n        <!-- Already saved keys indicator -->\n        <div id=\"saved-keys-info\" style=\"font-size:11px;color:#5a7a9a;display:flex;flex-direction:column;gap:3px\"></div>\n      </div>\n\n      <!-- Chat messages -->\n      <div class=\"chat-area\" id=\"chat-area\">\n        <div class=\"welcome\" id=\"welcome-screen\">\n          <div class=\"welcome-icon\">\ud83e\udd16</div>\n          <h2>AI \u85e5\u5178\u52a9\u7406</h2>\n          <p>\u63cf\u8ff0\u60a8\u60f3\u627e\u7684\u85e5\u7269\u7279\u6027\u3001\u9069\u61c9\u75c7\u6216\u7528\u6cd5\uff0cAI \u5c07\u5f9e 1,572 \u7b46\u9662\u5167\u85e5\u5178\u4e2d\u70ba\u60a8\u7be9\u9078\u63a8\u85a6</p>\n          <div class=\"suggestions\">\n            <button class=\"sug-btn\" onclick=\"quickAsk(this)\">\ud83d\udc8a \u627e\u6cbb\u7642\u7b2c\u4e8c\u578b\u7cd6\u5c3f\u75c5\u4e14\u53ef\u964d\u4f4e\u5fc3\u8840\u7ba1\u98a8\u96aa\u7684\u85e5\u7269</button>\n            <button class=\"sug-btn\" onclick=\"quickAsk(this)\">\ud83e\ude7a \u6709\u54ea\u4e9b\u9069\u5408\u814e\u529f\u80fd\u4e0d\u4f73\u60a3\u8005\u7684\u964d\u58d3\u85e5\uff1f</button>\n            <button class=\"sug-btn\" onclick=\"quickAsk(this)\">\ud83d\ude34 \u627e\u77ed\u6548\u578b\u5b89\u7720\u85e5\uff0c\u4e0d\u60f3\u5f71\u97ff\u9694\u5929\u7cbe\u795e</button>\n            <button class=\"sug-btn\" onclick=\"quickAsk(this)\">\ud83e\udda0 \u5ee3\u6548\u6297\u751f\u7d20\u6709\u54ea\u4e9b\uff0c\u9700\u8981\u53e3\u670d\u7684</button>\n          </div>\n        </div>\n      </div>\n\n      <!-- Input -->\n      <div class=\"chat-input-wrap\">\n        <div class=\"chat-input-row\">\n          <textarea id=\"ai-input\" placeholder=\"\u63cf\u8ff0\u85e5\u7406\u4f5c\u7528\u3001\u9069\u61c9\u75c7\u3001\u7528\u6cd5\u9700\u6c42\u2026\" rows=\"1\"\n            onkeydown=\"handleKey(event)\" oninput=\"autoResize(this)\"></textarea>\n          <button class=\"send-btn\" id=\"send-btn\" onclick=\"sendMessage()\">\u2191</button>\n        </div>\n        <div class=\"input-hint\" id=\"input-hint\">\u26a1 \u7531 Claude claude-sonnet-4-20250514 \u63d0\u4f9b \u00b7 \u8cc7\u6599\u4f86\u6e90\uff1a\u9662\u5167\u85e5\u5178</div>\n      </div>\n    </div>\n  </div>\n\n  <!-- Panel: Browse -->\n  <div class=\"panel\" id=\"panel-browse\">\n    <div class=\"browse-panel\">\n      <div class=\"search-bar\">\n        <div class=\"search-row\">\n          <input id=\"q\" type=\"search\" placeholder=\"\u85e5\u540d\u3001\u91ab\u4ee4\u4ee3\u78bc\u3001\u5b78\u540d\u2026\" autocomplete=\"off\">\n        </div>\n        <div class=\"filter-row\">\n          <select id=\"sel-dept\"><option value=\"\">\u5168\u90e8\u79d1\u5225</option></select>\n          <select id=\"sel-cat\"><option value=\"\">\u5168\u90e8\u5206\u985e</option></select>\n          <div class=\"chips\">\n            <div class=\"chip\" id=\"chip-alert\" onclick=\"toggleChip('alert')\">\u26a0 \u9ad8\u8b66\u8a0a</div>\n            <div class=\"chip\" id=\"chip-crush\" onclick=\"toggleChip('crush')\">\ud83d\udeab \u4e0d\u53ef\u78e8\u7c89</div>\n            <div class=\"chip\" id=\"chip-fall\" onclick=\"toggleChip('fall')\">\ud83d\udeb6 \u6613\u8dcc\u5012</div>\n          </div>\n        </div>\n        <div class=\"result-info\" id=\"result-count\"></div>\n      </div>\n      <div id=\"list\"></div>\n    </div>\n  </div>\n</div>\n\n<!-- Detail Modal -->\n<div class=\"overlay\" id=\"overlay\" onclick=\"closeIfBg(event)\">\n  <div class=\"modal\">\n    <div class=\"modal-hdr\">\n      <div class=\"modal-hdr-text\">\n        <h2 id=\"m-brand\">\u2014</h2>\n        <p id=\"m-generic\">\u2014</p>\n      </div>\n      <button class=\"btn-close\" onclick=\"closeModal()\">\u2715</button>\n    </div>\n    <div class=\"flags\" id=\"m-flags\"></div>\n    <div class=\"modal-body\" id=\"m-body\"></div>\n  </div>\n</div>\n\n<script>\n"
+const TMPL_AFTER  = "\n\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n//  State\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\nlet filtered = [];\nlet chips = { alert: false, crush: false, fall: false };\nlet page = 0;\nconst PAGE_SIZE = 40;\nlet isThinking = false;\nlet currentDrugForAI = null;\n\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n//  Init\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\nwindow.addEventListener('DOMContentLoaded', () => {\n  document.getElementById('total-badge').textContent = DRUGS.length + ' \u7b46';\n\n  // Populate filters\n  const depts = [...new Set(DRUGS.map(d => d.dept))].filter(Boolean).sort();\n  const sd = document.getElementById('sel-dept');\n  depts.forEach(d => {\n    const o = document.createElement('option'); o.value = d; o.textContent = d; sd.appendChild(o);\n  });\n  sd.addEventListener('change', () => { updateCats(); doSearch(); });\n  document.getElementById('sel-cat').addEventListener('change', doSearch);\n  document.getElementById('q').addEventListener('input', doSearch);\n\n  doSearch();\n  checkApiKey();\n});\n\n// \u2500\u2500\u2500 Provider config \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nconst PROVIDERS = {\n  anthropic: {\n    name: 'Claude Sonnet',\n    hint: '\u53d6\u5f97 Key\uff1a<a href=\"https://console.anthropic.com\" target=\"_blank\" style=\"color:var(--teal)\">console.anthropic.com</a><br>\u683c\u5f0f\uff1ask-ant-api03-\u2026',\n    placeholder: 'sk-ant-api03-\u2026',\n    storageKey: 'anthropic_key'\n  },\n  openai: {\n    name: 'GPT-4o',\n    hint: '\u53d6\u5f97 Key\uff1a<a href=\"https://platform.openai.com/api-keys\" target=\"_blank\" style=\"color:var(--teal)\">platform.openai.com</a><br>\u683c\u5f0f\uff1ask-proj-\u2026 \u6216 sk-\u2026',\n    placeholder: 'sk-proj-\u2026',\n    storageKey: 'openai_key'\n  },\n  google: {\n    name: 'Google AI Studio',\n    hint: '\u53d6\u5f97\u514d\u8cbb Key\uff1a<a href=\"https://aistudio.google.com/app/apikey\" target=\"_blank\" style=\"color:var(--teal)\">aistudio.google.com</a>\uff08\u4e0d\u9700\u7d81\u4fe1\u7528\u5361\uff09<br>\u683c\u5f0f\uff1aAIza\u2026 \uff5c Gemma 4 \u6bcf\u65e5\u5404 1,500 \u6b21\u514d\u8cbb',\n    placeholder: 'AIzaSy\u2026',\n    storageKey: 'google_key'\n  },\n  groq: {\n    name: 'Groq \u2014 Gemma 3 27B',\n    hint: '\u53d6\u5f97\u514d\u8cbb Key\uff1a<a href=\"https://console.groq.com/keys\" target=\"_blank\" style=\"color:var(--teal)\">console.groq.com</a>\uff08\u5b8c\u5168\u514d\u8cbb\uff0c\u901f\u5ea6\u6975\u5feb\uff09<br>\u683c\u5f0f\uff1agsk_\u2026',\n    placeholder: 'gsk_\u2026',\n    storageKey: 'groq_key'\n  }\n};\n\nlet currentProvider = localStorage.getItem('active_provider') || 'anthropic';\nlet selectedGoogleModel = localStorage.getItem('google_model') || 'gemma-4-26b-a4b-it';\n\nfunction selectModel(modelId) {\n  selectedGoogleModel = modelId;\n  localStorage.setItem('google_model', modelId);\n  document.querySelectorAll('.model-opt').forEach(b => b.classList.remove('active'));\n  const btn = document.getElementById('mopt-' + modelId);\n  if (btn) btn.classList.add('active');\n}\n\nfunction selectProvider(prov) {\n  currentProvider = prov;\n  ['anthropic','openai','google','groq'].forEach(p => {\n    document.getElementById('ptab-'+p).classList.toggle('active', p === prov);\n  });\n  // Show model selector only for Google\n  document.getElementById('model-selector').style.display = prov === 'google' ? 'flex' : 'none';\n  // Restore active model button\n  if (prov === 'google') selectModel(selectedGoogleModel);\n  const cfg = PROVIDERS[prov];\n  document.getElementById('prov-hint').innerHTML = cfg.hint;\n  document.getElementById('api-key-input').placeholder = cfg.placeholder;\n  document.getElementById('api-key-input').value = localStorage.getItem(cfg.storageKey) || '';\n}\n\nfunction updateSavedKeysInfo() {\n  const lines = Object.entries(PROVIDERS).map(([k,v]) => {\n    const saved = localStorage.getItem(v.storageKey);\n    return saved\n      ? `<span style=\"color:var(--teal)\">\u2713 ${v.name}</span>`\n      : `<span style=\"color:var(--muted)\">\u2717 ${v.name}</span>`;\n  });\n  document.getElementById('saved-keys-info').innerHTML = '\u5df2\u5132\u5b58\u7684 Key\uff1a' + lines.join('\u3000');\n}\n\nfunction checkApiKey() {\n  const hasAny = Object.values(PROVIDERS).some(v => localStorage.getItem(v.storageKey));\n  const activeKey = localStorage.getItem(PROVIDERS[currentProvider].storageKey);\n  if (!hasAny) {\n    document.getElementById('api-setup-box').style.display = 'flex';\n    document.getElementById('api-setup-box').style.flexDirection = 'column';\n    document.getElementById('send-btn').disabled = true;\n    document.getElementById('ai-input').placeholder = '\u8acb\u5148\u8a2d\u5b9a API Key\u2026';\n    document.getElementById('input-hint').textContent = '\u2699\ufe0f \u9700\u8981 API Key \u624d\u80fd\u4f7f\u7528 AI \u529f\u80fd';\n    selectProvider(currentProvider);\n    updateSavedKeysInfo();\n  } else if (!activeKey) {\n    // Has some key but not for current provider \u2014 auto switch\n    const available = Object.entries(PROVIDERS).find(([k,v]) => localStorage.getItem(v.storageKey));\n    if (available) { currentProvider = available[0]; localStorage.setItem('active_provider', currentProvider); }\n    updateHintBar();\n  } else {\n    updateHintBar();\n  }\n}\n\nfunction updateHintBar() {\n  const cfg = PROVIDERS[currentProvider];\n  document.getElementById('send-btn').disabled = false;\n  document.getElementById('ai-input').placeholder = '\u63cf\u8ff0\u85e5\u7406\u4f5c\u7528\u3001\u9069\u61c9\u75c7\u3001\u7528\u6cd5\u9700\u6c42\u2026';\n  const modelLabel = currentProvider === 'google'\n    ? selectedGoogleModel.replace('gemma-4-26b-a4b-it','Gemma 4 26B').replace('gemma-4-31b-it','Gemma 4 31B').replace('gemini-2.0-flash','Gemini 2.0 Flash')\n    : cfg.name;\n  document.getElementById('input-hint').textContent = `\u26a1 \u4f7f\u7528 ${modelLabel} \u00b7 \u8cc7\u6599\u4f86\u6e90\uff1a\u9662\u5167\u85e5\u5178`;\n}\n\nfunction saveApiKey() {\n  const key = document.getElementById('api-key-input').value.trim();\n  if (!key) { alert('\u8acb\u8f38\u5165 API Key'); return; }\n  const cfg = PROVIDERS[currentProvider];\n  localStorage.setItem(cfg.storageKey, key);\n  localStorage.setItem('active_provider', currentProvider);\n  document.getElementById('api-setup-box').style.display = 'none';\n  updateHintBar();\n  updateSavedKeysInfo();\n  addMsg('ai', `\u2705 ${cfg.name} API Key \u8a2d\u5b9a\u5b8c\u6210\uff01\u8acb\u554f\u60a8\u60f3\u627e\u4ec0\u9ebc\u85e5\u7269\uff1f`);\n}\n\nfunction openProviderSettings() {\n  document.getElementById('api-setup-box').style.display = 'flex';\n  document.getElementById('api-setup-box').style.flexDirection = 'column';\n  selectProvider(currentProvider);\n  updateSavedKeysInfo();\n}\n\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n//  Tab switching\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\nfunction switchTab(tab) {\n  ['ai','browse'].forEach(t => {\n    document.getElementById('tab-'+t).classList.toggle('active', t===tab);\n    document.getElementById('panel-'+t).classList.toggle('active', t===tab);\n  });\n}\n\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n//  Browse / Search\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\nfunction updateCats() {\n  const dept = document.getElementById('sel-dept').value;\n  const cats = [...new Set(DRUGS.filter(d => !dept || d.dept===dept).map(d => d.cat))].filter(Boolean).sort();\n  const sc = document.getElementById('sel-cat');\n  sc.innerHTML = '<option value=\"\">\u5168\u90e8\u5206\u985e</option>';\n  cats.forEach(c => { const o = document.createElement('option'); o.value=c; o.textContent=c; sc.appendChild(o); });\n}\n\nfunction doSearch() {\n  const q = document.getElementById('q').value.toLowerCase().trim();\n  const dept = document.getElementById('sel-dept').value;\n  const cat = document.getElementById('sel-cat').value;\n  filtered = DRUGS.filter(d => {\n    if (dept && d.dept !== dept) return false;\n    if (cat && d.cat !== cat) return false;\n    if (chips.alert && !d.alert) return false;\n    if (chips.crush && d.noCrush !== 'Y') return false;\n    if (chips.fall && d.fallRisk !== 'Y') return false;\n    if (!q) return true;\n    return d._s && d._s.includes(q);\n  });\n  page = 0;\n  renderList();\n}\n\nfunction toggleChip(name) {\n  chips[name] = !chips[name];\n  document.getElementById('chip-'+name).classList.toggle('on', chips[name]);\n  doSearch();\n}\n\nfunction renderList() {\n  const list = document.getElementById('list');\n  const items = filtered.slice(0, (page+1)*PAGE_SIZE);\n  document.getElementById('result-count').textContent =\n    filtered.length === 0 ? '\u67e5\u7121\u7d50\u679c' : `\u986f\u793a ${items.length} / ${filtered.length} \u7b46`;\n  if (filtered.length === 0) {\n    list.innerHTML = '<div class=\"empty\"><div class=\"ei\">\ud83d\udd0d</div><div>\u67e5\u7121\u76f8\u7b26\u85e5\u54c1</div></div>';\n    return;\n  }\n  list.innerHTML = items.map(d => {\n    const idx = DRUGS.indexOf(d);\n    const tags = [\n      `<span class=\"tag tag-dept\">${d.dept}</span>`,\n      d.cat ? `<span class=\"tag tag-cat\">${d.cat}</span>` : '',\n      d.alert ? '<span class=\"tag tag-warn\">\u26a0 \u9ad8\u8b66\u8a0a</span>' : '',\n      d.noCrush==='Y' ? '<span class=\"tag tag-crush\">\ud83d\udeab \u4e0d\u53ef\u78e8\u7c89</span>' : '',\n      d.fallRisk==='Y' ? '<span class=\"tag tag-fall\">\ud83d\udeb6 \u6613\u8dcc\u5012</span>' : '',\n      d.preg ? `<span class=\"tag tag-preg\">\u5b55${d.preg.trim()}</span>` : '',\n    ].filter(Boolean).join('');\n    return `<div class=\"card\" onclick=\"openModal(${idx})\">\n      <div class=\"card-code\">${d.code}</div>\n      <div class=\"card-brand\">${d.brand || d.generic}</div>\n      <div class=\"card-generic\">${d.generic}</div>\n      <div class=\"card-tags\">${tags}</div>\n    </div>`;\n  }).join('');\n  if (items.length < filtered.length) {\n    const s = document.createElement('div');\n    s.style.height = '40px'; list.appendChild(s);\n    const obs = new IntersectionObserver(e => {\n      if (e[0].isIntersecting) { page++; obs.disconnect(); renderList(); }\n    });\n    obs.observe(s);\n  }\n}\n\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n//  Modal\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\nfunction openModal(idx) {\n  const d = DRUGS[idx];\n  currentDrugForAI = d;\n  document.getElementById('m-brand').textContent = d.brand || d.generic;\n  document.getElementById('m-generic').textContent = d.generic;\n\n  const flags = [];\n  if (d.alert) flags.push(`<span class=\"tag tag-warn\" style=\"font-size:12px;padding:4px 10px\">\u26a0 \u9ad8\u8b66\u8a0a</span>`);\n  if (d.noCrush==='Y') flags.push(`<span class=\"tag tag-crush\" style=\"font-size:12px;padding:4px 10px\">\ud83d\udeab \u4e0d\u53ef\u78e8\u7c89</span>`);\n  if (d.fallRisk==='Y') flags.push(`<span class=\"tag tag-fall\" style=\"font-size:12px;padding:4px 10px\">\ud83d\udeb6 \u6613\u8dcc\u5012</span>`);\n  const fb = document.getElementById('m-flags');\n  fb.innerHTML = flags.join('');\n  fb.style.display = flags.length ? 'flex' : 'none';\n\n  const body = [];\n  body.push(`<div class=\"meta-grid\">\n    <div class=\"meta-item\"><div class=\"ml\">\u91ab\u4ee4\u4ee3\u78bc</div><div class=\"mv\" style=\"font-family:'DM Mono',monospace;font-size:12px\">${d.code}</div></div>\n    <div class=\"meta-item\"><div class=\"ml\">\u79d1\u5225</div><div class=\"mv\">${d.dept}</div></div>\n    <div class=\"meta-item\"><div class=\"ml\">\u5206\u985e</div><div class=\"mv\">${d.cat}</div></div>\n    ${d.preg ? `<div class=\"meta-item\"><div class=\"ml\">\u61f7\u5b55</div><div class=\"mv\">\u7b2c ${d.preg.trim()} \u7d1a</div></div>` : ''}\n    ${d.atc ? `<div class=\"meta-item\"><div class=\"ml\">ATC\u78bc</div><div class=\"mv\" style=\"font-family:'DM Mono',monospace;font-size:11px\">${d.atc}</div></div>` : ''}\n  </div>`);\n\n  const secs = [\n    d.alert       ? ['\u26a0 \u9ad8\u8b66\u8a0a\u6ce8\u610f\u4e8b\u9805', d.alert, true]         : null,\n    d.indication  ? ['\u9069\u61c9\u75c7', d.indication, false]              : null,\n    d.mechanism   ? ['\u85e5\u7406\u6a5f\u8f49', d.mechanism, false]             : null,\n    d.dosage      ? ['\ud83d\udc89 \u7528\u6cd5\u7528\u91cf', d.dosage, false]             : null,\n    d.commonSE    ? ['\ud83d\udd34 \u5e38\u898b\u526f\u4f5c\u7528\uff08\u85e5\u888b\u6a19\u793a\uff09', d.commonSE, false] : null,\n    d.sideEffect  ? ['\u526f\u4f5c\u7528\uff08\u8a73\u7d30\uff09', d.sideEffect, false]      : null,\n    d.ci          ? ['\u7981\u5fcc\u75c7', d.ci, false]                      : null,\n    d.caution     ? ['\u6ce8\u610f\u4e8b\u9805', d.caution, false]               : null,\n    d.renalHepatic? ['\u814e\u809d\u529f\u80fd\u8abf\u6574', d.renalHepatic, false]     : null,\n    d.bf          ? ['\u6388\u4e73', d.bf, false]                        : null,\n  ].filter(Boolean);\n\n  secs.forEach(([title, content, isDanger]) => {\n    if (!content || !content.trim()) return;\n    body.push(`<div class=\"sec\">\n      <div class=\"sec-hdr ${isDanger?'danger':''}\">${title}</div>\n      <div class=\"sec-body\">${content.replace(/\\r\\n|\\r/g,'\\n').trim()}</div>\n    </div>`);\n  });\n\n  // Ask AI button\n  body.push(`<button class=\"ask-ai-btn\" onclick=\"askAIAboutDrug()\">\ud83e\udd16 \u8a62\u554f AI \u95dc\u65bc\u6b64\u85e5\u7269</button>`);\n\n  document.getElementById('m-body').innerHTML = body.join('');\n  document.getElementById('overlay').classList.add('open');\n  document.body.style.overflow = 'hidden';\n}\n\nfunction closeModal() {\n  document.getElementById('overlay').classList.remove('open');\n  document.body.style.overflow = '';\n}\nfunction closeIfBg(e) {\n  if (e.target === document.getElementById('overlay')) closeModal();\n}\n\nfunction askAIAboutDrug() {\n  if (!currentDrugForAI) return;\n  closeModal();\n  switchTab('ai');\n  const name = currentDrugForAI.brand || currentDrugForAI.generic;\n  document.getElementById('ai-input').value = `\u8acb\u8a73\u7d30\u8aaa\u660e ${name}\uff08${currentDrugForAI.code}\uff09\u7684\u81e8\u5e8a\u4f7f\u7528\u6ce8\u610f\u4e8b\u9805\u3001\u9069\u5408\u54ea\u985e\u60a3\u8005\u3001\u4ee5\u53ca\u8207\u5176\u4ed6\u85e5\u7269\u7684\u91cd\u8981\u4ea4\u4e92\u4f5c\u7528`;\n  sendMessage();\n}\n\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n//  AI Chat\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\nfunction quickAsk(btn) {\n  document.getElementById('ai-input').value = btn.textContent.trim().replace(/^[^\\s]+\\s/,'');\n  sendMessage();\n}\n\nfunction handleKey(e) {\n  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }\n}\n\nfunction autoResize(el) {\n  el.style.height = 'auto';\n  el.style.height = Math.min(el.scrollHeight, 120) + 'px';\n}\n\nfunction addMsg(role, content, drugCards) {\n  const welcome = document.getElementById('welcome-screen');\n  if (welcome) welcome.remove();\n\n  const area = document.getElementById('chat-area');\n  const div = document.createElement('div');\n  div.className = `msg ${role}`;\n  const avatar = role === 'ai' ? '\ud83e\udd16' : '\ud83d\udc64';\n\n  let cardsHtml = '';\n  if (drugCards && drugCards.length > 0) {\n    cardsHtml = `<div class=\"drug-cards\">${drugCards.map(dc => {\n      const tags = [\n        `<span class=\"dcm-tag dept\">${dc.dept}</span>`,\n        dc.alert ? '<span class=\"dcm-tag warn\">\u26a0 \u9ad8\u8b66\u8a0a</span>' : '',\n        dc.noCrush==='Y' ? '<span class=\"dcm-tag crush\">\ud83d\udeab \u4e0d\u53ef\u78e8\u7c89</span>' : '',\n      ].filter(Boolean).join('');\n      const idx = DRUGS.findIndex(d => d.code === dc.code);\n      return `<div class=\"drug-card-mini\" onclick=\"openModal(${idx})\">\n        <div class=\"dcm-code\">${dc.code}</div>\n        <div class=\"dcm-name\">${dc.brand || dc.generic}</div>\n        <div class=\"dcm-sub\">${dc.cat} \u00b7 ${dc.dept}</div>\n        <div class=\"dcm-tags\">${tags}</div>\n        ${dc._reason ? `<div class=\"dcm-reason\">${dc._reason}</div>` : ''}\n      </div>`;\n    }).join('')}</div>`;\n  }\n\n  const textHtml = content.split('\\n').filter(l=>l.trim()).map(l=>`<p>${l}</p>`).join('');\n  div.innerHTML = `\n    <div class=\"msg-avatar\">${avatar}</div>\n    <div class=\"msg-bubble\">${textHtml}${cardsHtml}</div>\n  `;\n  area.appendChild(div);\n  area.scrollTop = area.scrollHeight;\n  return div;\n}\n\nfunction showThinking() {\n  const area = document.getElementById('chat-area');\n  const welcome = document.getElementById('welcome-screen');\n  if (welcome) welcome.remove();\n  const div = document.createElement('div');\n  div.className = 'msg ai'; div.id = 'thinking-indicator';\n  div.innerHTML = `<div class=\"msg-avatar\">\ud83e\udd16</div>\n    <div class=\"thinking\"><div class=\"dot\"></div><div class=\"dot\"></div><div class=\"dot\"></div></div>`;\n  area.appendChild(div);\n  area.scrollTop = area.scrollHeight;\n}\n\nfunction removeThinking() {\n  const t = document.getElementById('thinking-indicator');\n  if (t) t.remove();\n}\n\nasync function sendMessage() {\n  if (isThinking) return;\n  const apiKey = localStorage.getItem('anthropic_key');\n  if (!apiKey) { document.getElementById('api-setup-box').style.display = 'flex'; return; }\n\n  const input = document.getElementById('ai-input');\n  const text = input.value.trim();\n  if (!text) return;\n\n  input.value = '';\n  input.style.height = 'auto';\n  document.getElementById('send-btn').disabled = true;\n  isThinking = true;\n\n  addMsg('user', text);\n  showThinking();\n\n  try {\n    // Step 1: keyword pre-filter (pick candidate drugs from full DB)\n    // Use basic keyword extraction to find relevant subset\n    const keywords = text.toLowerCase()\n      .replace(/[\uff0c\u3002\uff01\uff1f\u3001]/g,' ')\n      .split(/\\s+/)\n      .filter(w => w.length > 1);\n\n    // Score each drug by keyword matches in _s field\n    const scored = DRUGS.map((d, i) => {\n      if (!d._s) return { d, i, score: 0 };\n      let score = keywords.reduce((acc, kw) => acc + (d._s.includes(kw) ? 2 : 0), 0);\n      return { d, i, score };\n    }).filter(x => x.score > 0).sort((a,b) => b.score - a.score);\n\n    // Take top 80 candidates, plus send all dept/cat info for context\n    const candidates = scored.slice(0, 80).map(x => x.d);\n\n    // If no keyword match, send a sample from each dept\n    const contextDrugs = candidates.length >= 5 ? candidates : DRUGS.slice(0, 100);\n\n    // Build compact context for AI\n    const drugContext = contextDrugs.map(d =>\n      `[${d.code}] ${d.brand||d.generic} | ${d.dept}\u30fb${d.cat}` +\n      (d.mechanism ? ` | \u6a5f\u8f49:${d.mechanism.slice(0,120)}` : '') +\n      (d.indication ? ` | \u9069\u61c9\u75c7:${d.indication.slice(0,120)}` : '') +\n      (d.dosage ? ` | \u7528\u6cd5:${d.dosage.slice(0,80)}` : '') +\n      (d.alert ? ' | \u26a0\u9ad8\u8b66\u8a0a' : '') +\n      (d.noCrush==='Y' ? ' | \u4e0d\u53ef\u78e8\u7c89' : '') +\n      (d.preg ? ` | \u5b55${d.preg.trim()}\u7d1a` : '')\n    ).join('\\n');\n\n    const systemPrompt = `\u4f60\u662f\u9ad8\u96c4\u79c0\u50b3\u7d00\u5ff5\u91ab\u9662\u7684 AI \u85e5\u5178\u52a9\u7406\uff0c\u4efb\u52d9\u662f\u6839\u64da\u91ab\u5e2b\u6216\u8b77\u7406\u5e2b\u7684\u9700\u6c42\uff0c\u5f9e\u9662\u5167\u897f\u85e5\u85e5\u5178\u4e2d\u627e\u51fa\u6700\u5408\u9069\u7684\u85e5\u7269\u3002\n\n\u4ee5\u4e0b\u662f\u8207\u67e5\u8a62\u76f8\u95dc\u7684\u9662\u5167\u85e5\u54c1\u8cc7\u6599\uff08\u5171 ${contextDrugs.length} \u7b46\u5019\u9078\uff09\uff1a\n---\n${drugContext}\n---\n\n\u56de\u61c9\u898f\u5247\uff1a\n1. \u6839\u64da\u4f7f\u7528\u8005\u9700\u6c42\uff0c\u5f9e\u4e0a\u65b9\u85e5\u54c1\u4e2d\u9078\u51fa\u6700\u7b26\u5408\u7684 2\u20136 \u500b\n2. \u7528\u7e41\u9ad4\u4e2d\u6587\u56de\u7b54\n3. \u56de\u61c9\u683c\u5f0f\uff1a\n   - \u5148\u7528 1\u20132 \u53e5\u8aaa\u660e\u4f60\u7684\u7be9\u9078\u908f\u8f2f\n   - \u7136\u5f8c\u5217\u51fa\u63a8\u85a6\u85e5\u7269\uff0c\u683c\u5f0f\uff1a\n     DRUG_LIST_START\n     CODE:\u91ab\u4ee4\u4ee3\u78bc|REASON:\u63a8\u85a6\u539f\u56e0\uff0830\u5b57\u5167\uff09\n     CODE:\u91ab\u4ee4\u4ee3\u78bc|REASON:\u63a8\u85a6\u539f\u56e0\n     DRUG_LIST_END\n   - \u6700\u5f8c\u88dc\u5145\u91cd\u8981\u81e8\u5e8a\u63d0\u9192\uff08\u82e5\u6709\uff09\n4. \u82e5\u554f\u984c\u662f\u95dc\u65bc\u7279\u5b9a\u85e5\u7269\u7684\u81e8\u5e8a\u7d30\u7bc0\uff08\u975e\u9078\u85e5\uff09\uff0c\u76f4\u63a5\u8a73\u7d30\u56de\u7b54\uff0c\u4e0d\u7528\u5217 DRUG_LIST\n5. \u82e5\u9662\u5167\u85e5\u5178\u7121\u5408\u9069\u85e5\u7269\uff0c\u8aa0\u5be6\u8aaa\u660e\u4e26\u5efa\u8b70\u67e5\u8a62\u65b9\u5411`;\n\n    // \u2500\u2500 Call the selected AI provider \u2500\u2500\n    let rawText = '';\n    const prov = currentProvider;\n    const cfg = PROVIDERS[prov];\n    const apiKey = localStorage.getItem(cfg.storageKey);\n    if (!apiKey) throw new Error(`\u5c1a\u672a\u8a2d\u5b9a ${cfg.name} \u7684 API Key`);\n\n    if (prov === 'anthropic') {\n      const response = await fetch('https://api.anthropic.com/v1/messages', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n        body: JSON.stringify({\n          model: 'claude-sonnet-4-20250514',\n          max_tokens: 1000,\n          system: systemPrompt,\n          messages: [{ role: 'user', content: text }]\n        })\n      });\n      if (response.status === 401) throw new Error('Anthropic API Key \u7121\u6548');\n      if (!response.ok) throw new Error(`Anthropic API \u932f\u8aa4\uff1a${response.status}`);\n      const data = await response.json();\n      rawText = data.content?.[0]?.text || '\uff08\u7121\u56de\u61c9\uff09';\n\n    } else if (prov === 'openai') {\n      const response = await fetch('https://api.openai.com/v1/chat/completions', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },\n        body: JSON.stringify({\n          model: 'gpt-4o',\n          max_tokens: 1000,\n          messages: [\n            { role: 'system', content: systemPrompt },\n            { role: 'user', content: text }\n          ]\n        })\n      });\n      if (response.status === 401) throw new Error('OpenAI API Key \u7121\u6548');\n      if (!response.ok) throw new Error(`OpenAI API \u932f\u8aa4\uff1a${response.status}`);\n      const data = await response.json();\n      rawText = data.choices?.[0]?.message?.content || '\uff08\u7121\u56de\u61c9\uff09';\n\n    } else if (prov === 'google') {\n      const gModel = selectedGoogleModel || 'gemma-4-26b-a4b-it';\n      const response = await fetch(\n        `https://generativelanguage.googleapis.com/v1beta/models/${gModel}:generateContent?key=${apiKey}`,\n        {\n          method: 'POST',\n          headers: { 'Content-Type': 'application/json' },\n          body: JSON.stringify({\n            system_instruction: { parts: [{ text: systemPrompt }] },\n            contents: [{ parts: [{ text: text }] }],\n            generationConfig: { maxOutputTokens: 1000 }\n          })\n        }\n      );\n      if (response.status === 400 || response.status === 403) throw new Error('Google API Key \u7121\u6548');\n      if (!response.ok) throw new Error(`Google API \u932f\u8aa4\uff1a${response.status}`);\n      const data = await response.json();\n      rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '\uff08\u7121\u56de\u61c9\uff09';\n\n    } else if (prov === 'groq') {\n      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },\n        body: JSON.stringify({\n          model: 'gemma2-9b-it',\n          max_tokens: 1000,\n          messages: [\n            { role: 'system', content: systemPrompt },\n            { role: 'user', content: text }\n          ]\n        })\n      });\n      if (response.status === 401) throw new Error('Groq API Key \u7121\u6548');\n      if (!response.ok) throw new Error(`Groq API \u932f\u8aa4\uff1a${response.status}`);\n      const data = await response.json();\n      rawText = data.choices?.[0]?.message?.content || '\uff08\u7121\u56de\u61c9\uff09';\n    }\n\n    removeThinking();\n\n    // Parse DRUG_LIST if present\n    const listMatch = rawText.match(/DRUG_LIST_START\\n([\\s\\S]*?)\\nDRUG_LIST_END/);\n    let drugCards = [];\n    let cleanText = rawText;\n\n    if (listMatch) {\n      const lines = listMatch[1].trim().split('\\n').filter(Boolean);\n      drugCards = lines.map(line => {\n        const codeMatch = line.match(/CODE:([^\\|]+)/);\n        const reasonMatch = line.match(/REASON:(.+)/);\n        if (!codeMatch) return null;\n        const code = codeMatch[1].trim();\n        const reason = reasonMatch ? reasonMatch[1].trim() : '';\n        const drug = DRUGS.find(d => d.code === code);\n        if (!drug) return null;\n        return { ...drug, _reason: reason };\n      }).filter(Boolean);\n\n      cleanText = rawText\n        .replace(/DRUG_LIST_START[\\s\\S]*?DRUG_LIST_END/, '')\n        .trim();\n    }\n\n    addMsg('ai', cleanText, drugCards.length > 0 ? drugCards : null);\n\n  } catch (err) {\n    removeThinking();\n    addMsg('ai', `\u274c \u767c\u751f\u932f\u8aa4\uff1a${err.message}\\n\\n\u82e5\u70ba API Key \u554f\u984c\uff0c\u53ef\u9ede\u53f3\u4e0a\u89d2 \u2699\ufe0f \u91cd\u65b0\u8a2d\u5b9a\u3002`);\n    if (err.message.includes('Key \u7121\u6548') || err.message.includes('\u5c1a\u672a\u8a2d\u5b9a')) {\n      openProviderSettings();\n    }\n  }\n\n  isThinking = false;\n  document.getElementById('send-btn').disabled = false;\n}\n\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n//  PWA / Offline\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\nfunction updateOnlineStatus() {\n  document.getElementById('offline-bar').classList.toggle('show', !navigator.onLine);\n}\nwindow.addEventListener('online', updateOnlineStatus);\nwindow.addEventListener('offline', updateOnlineStatus);\nupdateOnlineStatus();\n\nif ('serviceWorker' in navigator) {\n  window.addEventListener('load', () => {\n    navigator.serviceWorker.register('./sw.js').catch(e => console.warn('SW failed:', e));\n  });\n}\n\n// iOS install hint\nconst isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);\nif (isIOS && !window.navigator.standalone && !sessionStorage.getItem('ios-hint')) {\n  sessionStorage.setItem('ios-hint','1');\n  setTimeout(() => {\n    const t = document.createElement('div');\n    t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#162a4e;color:#f0f4ff;padding:12px 18px;border-radius:12px;font-size:13px;z-index:500;max-width:280px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.5);border:1px solid rgba(0,212,170,.3)';\n    t.innerHTML='\ud83d\udcf2 Safari \u4e0b\u65b9\u9ede <strong>\u5206\u4eab</strong>\uff0c\u518d\u9078\u300c<strong>\u52a0\u5165\u4e3b\u756b\u9762</strong>\u300d\u5373\u53ef\u96e2\u7dda\u4f7f\u7528';\n    document.body.appendChild(t);\n    setTimeout(()=>t.remove(),7000);\n  },2500);\n}\n\ndocument.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); });\n<\/script>\n</body>\n</html>"
+
+// ── Expected column mapping: [display label, default Excel header] ──
+const COL_DEFS = [
+  ['科別',         '主藥理分類.1'],
+  ['分類',         '藥理分類.1'],
+  ['醫令代碼',     '醫令代碼'],
+  ['學名',         '學名'],
+  ['商品名',       '商品名'],
+  ['懷孕級數',     '懷孕級數'],
+  ['高警訊',       '高警訊注意事項'],
+  ['藥理機轉',     '機轉'],
+  ['適應症',       '適應症'],
+  ['副作用',       '副作用'],
+  ['常見副作用',   '藥袋上標示常見副作用'],
+  ['禁忌症',       '禁忌'],
+  ['注意事項',     '注意事項'],
+  ['用法用量',     '用法用量'],
+  ['腎肝功能調整', '腎肝功能調整'],
+  ['授乳',         '授乳'],
+  ['不可磨粉',     '不可磨粉'],
+  ['易跌倒藥',     '易跌倒藥'],
+  ['ATC碼',        '主ATC碼'],
+];
+
+const FIELD_KEYS = ['dept','cat','code','generic','brand','preg','alert','mechanism',
+  'indication','sideEffect','commonSE','ci','caution','dosage','renalHepatic',
+  'bf','noCrush','fallRisk','atc'];
+
+let workbook = null;
+let sheetData = [];
+let excelHeaders = [];
+let generatedHTML = null;
+
+// ── Drop zone drag events ──
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+
+function setStatus(text, pct, count='') {
+  const box = document.getElementById('status-box');
+  box.classList.add('show');
+  document.getElementById('status-text').textContent = text;
+  document.getElementById('progress-bar').style.width = pct + '%';
+  document.getElementById('status-count').textContent = count;
+}
+
+function setStep(n) {
+  [1,2,3].forEach(i => {
+    const el = document.getElementById('step'+i);
+    el.classList.remove('active','done');
+    if (i < n) el.classList.add('done');
+    else if (i === n) el.classList.add('active');
+  });
+}
+
+async function handleFile(file) {
+  if (!file) return;
+  if (!file.name.match(/\.xls[x]?$/i)) {
+    showWarn('請選擇 .xls 或 .xlsx 格式的檔案');
+    return;
+  }
+
+  setStatus('讀取 Excel 檔案…', 10);
+  document.getElementById('sec-upload').style.display = 'none';
+
+  const buf = await file.arrayBuffer();
+  setStatus('解析工作表…', 30);
+
+  await new Promise(r => setTimeout(r, 50)); // yield to render
+
+  try {
+    workbook = XLSX.read(buf, { type: 'array' });
+    const sheetName = workbook.SheetNames[0];
+    const ws = workbook.Sheets[sheetName];
+    sheetData = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    excelHeaders = sheetData.length > 0 ? Object.keys(sheetData[0]) : [];
+
+    setStatus(`解析完成，共 ${sheetData.length} 筆藥品`, 60, sheetData.length + ' 筆');
+    buildColMap();
+    setStep(2);
+  } catch(e) {
+    showWarn('讀取失敗：' + e.message);
+    resetAll();
+  }
+}
+
+function buildColMap() {
+  const rows = document.getElementById('col-rows');
+  rows.innerHTML = COL_DEFS.map(([label, defaultCol], i) => {
+    const matched = excelHeaders.includes(defaultCol) ? defaultCol : '';
+    const opts = excelHeaders.map(h =>
+      `<option value="${h}" ${h === matched ? 'selected' : ''}>${h}</option>`
+    ).join('');
+    return `<div class="col-row">
+      <span class="col-label">${label}</span>
+      <select class="col-select" id="col-${i}">
+        <option value="">(略過此欄)</option>
+        ${opts}
+      </select>
+    </div>`;
+  }).join('');
+
+  const unmapped = COL_DEFS.filter(([,def]) => !excelHeaders.includes(def));
+  if (unmapped.length > 0) {
+    showWarn(`⚠ 以下欄位在新 Excel 中找不到對應，請手動選擇：${unmapped.map(x=>x[0]).join('、')}`);
+  }
+
+  document.getElementById('sec-colmap').classList.add('show');
+  buildPreview();
+  document.getElementById('btn-generate').classList.add('show');
+  document.getElementById('btn-reset').classList.add('show');
+  setStatus('請確認欄位對應後，點下方按鈕產生新版 App', 70);
+}
+
+function getColMapping() {
+  return COL_DEFS.map(([,], i) => document.getElementById('col-'+i).value);
+}
+
+function buildPreview() {
+  const mapping = getColMapping();
+  const previewRows = sheetData.slice(0, 3);
+
+  const visFields = FIELD_KEYS.slice(0,5); // dept,cat,code,generic,brand
+  const visIdxs = [0,1,2,3,4];
+  const labels = ['科別','分類','醫令代碼','學名','商品名'];
+
+  document.getElementById('preview-head').innerHTML =
+    '<tr>' + labels.map(l=>`<th>${l}</th>`).join('') + '</tr>';
+
+  document.getElementById('preview-body').innerHTML = previewRows.map(row => {
+    return '<tr>' + visIdxs.map(i => {
+      const col = mapping[i];
+      const val = col ? (row[col] || '') : '';
+      return `<td title="${val}">${String(val).slice(0,30)}</td>`;
+    }).join('') + '</tr>';
+  }).join('');
+
+  document.getElementById('sec-preview').classList.add('show');
+}
+
+function showWarn(msg) {
+  const w = document.getElementById('warn-box');
+  w.textContent = msg; w.classList.add('show');
+}
+
+function trunc(s, n) {
+  s = String(s || '').trim();
+  return s.length > n ? s.slice(0, n) : s;
+}
+
+async function generateHTML() {
+  setStep(3);
+  setStatus('處理藥品資料…', 75);
+  document.getElementById('btn-generate').disabled = true;
+
+  await new Promise(r => setTimeout(r, 50));
+
+  const mapping = getColMapping();
+
+  let count = 0;
+  const records = sheetData.map(row => {
+    const get = i => mapping[i] ? (row[mapping[i]] || '') : '';
+    const r = {
+      dept:         trunc(get(0), 50),
+      cat:          trunc(get(1), 50),
+      code:         trunc(get(2), 20),
+      generic:      trunc(get(3), 200),
+      brand:        trunc(get(4), 200),
+      preg:         trunc(get(5), 10),
+      alert:        trunc(get(6), 300),
+      mechanism:    trunc(get(7), 500),
+      indication:   trunc(get(8), 400),
+      sideEffect:   trunc(get(9), 400),
+      commonSE:     trunc(get(10), 200),
+      ci:           trunc(get(11), 400),
+      caution:      trunc(get(12), 400),
+      dosage:       trunc(get(13), 600),
+      renalHepatic: trunc(get(14), 300),
+      bf:           trunc(get(15), 200),
+      noCrush:      trunc(get(16), 5),
+      fallRisk:     trunc(get(17), 5),
+      atc:          trunc(get(18), 20),
+    };
+    // Build search index
+    r._s = [r.brand, r.generic, r.code, r.dept, r.cat,
+            r.mechanism.slice(0,200), r.indication.slice(0,200)].join(' ').toLowerCase();
+    count++;
+    return r;
+  });
+
+  setStatus('序列化資料…', 85);
+  await new Promise(r => setTimeout(r, 30));
+
+  const drugsJS = 'const DRUGS=' + JSON.stringify(records, null, 0) + ';';
+
+  setStatus('組合 HTML…', 92);
+  await new Promise(r => setTimeout(r, 30));
+
+  generatedHTML = TMPL_BEFORE + drugsJS + TMPL_AFTER;
+
+  setStatus('完成！', 100, count + ' 筆');
+  document.getElementById('result-desc').textContent =
+    `共 ${count} 筆藥品資料，檔案大小約 ${Math.round(new Blob([generatedHTML]).size/1024)} KB`;
+  document.getElementById('sec-result').classList.add('show');
+  document.getElementById('btn-generate').classList.remove('show');
+  setStep(3);
+  document.getElementById('step3').classList.add('done');
+}
+
+function downloadHTML() {
+  if (!generatedHTML) return;
+  const blob = new Blob([generatedHTML], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'index.html';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function resetAll() {
+  location.reload();
+}
+</script>
+</body>
+</html>
