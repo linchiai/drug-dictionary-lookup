@@ -1,6 +1,53 @@
-// 秀傳藥典查詢 PWA - Service Worker
-// 版本號更新時會強制重新快取
-const CACHE_NAME = 'drug-lookup-v1';
+// 藥典 AI 助理 PWA - Service Worker
+// 每次更新 App 時，把 CACHE_NAME 的版本號 +1，手機會自動偵測並更新
+const CACHE_NAME = 'drug-lookup-v18';
+const ASSETS = [
+  './index.html',
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png'
+];
+
+// ── 安裝：快取所有靜態資源 ──
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(ASSETS))
+      .then(() => self.skipWaiting())
+  );
+});
+
+// ── 啟動：清除所有舊版快取 ──
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
+  );
+});
+
+// ── Fetch：Network First（優先抓新版，失敗才用快取）──
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
+  event.respondWith(
+    fetch(event.request)
+      .then(response => {
+        if (response && response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        }
+        return response;
+      })
+      .catch(() =>
+        caches.match(event.request)
+          .then(cached => cached || caches.match('./index.html'))
+      )
+  );
+});
+
+self.addEventListener('message', event => {
+  if (event.data === 'SKIP_WAITING') self.skipWaiting();
+});
 const ASSETS = [
   './index.html',
   './manifest.json',
