@@ -1,7 +1,7 @@
 {
-  "name": "秀傳藥典 AI 助理",
+  "name": "藥典 AI 助理",
   "short_name": "藥典AI",
-  "description": "高雄秀傳紀念醫院西藥藥典查詢，支援離線使用",
+  "description": "院內西藥藥典查詢，支援離線使用",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#005b9a",
